@@ -3,7 +3,9 @@ use crate::{
     process_txn::verify::{VerifiedTransaction, VerifiedTransactionState},
 };
 use logger::prelude::*;
+use std::collections::HashSet;
 use types::{
+    access_path::AccessPath,
     transaction::{TransactionOutput, TransactionPayload, TransactionStatus},
     vm_error::{ExecutionStatus, VMStatus},
     write_set::WriteSet,
@@ -15,7 +17,9 @@ use vm::{
 
 /// Represents a transaction that has been executed.
 pub struct ExecutedTransaction {
+    #[allow(dead_code)]
     output: TransactionOutput,
+    read_set: HashSet<AccessPath>,
 }
 
 impl ExecutedTransaction {
@@ -25,19 +29,26 @@ impl ExecutedTransaction {
         'alloc: 'txn,
         P: ModuleCache<'alloc>,
     {
-        let output = execute(verified_txn);
-        Self { output }
+        let (output, read_set) = execute(verified_txn);
+        Self { output, read_set }
     }
 
     /// Returns the `TransactionOutput` for this transaction.
     pub fn into_output(self) -> TransactionOutput {
         self.output
     }
+
+    #[allow(dead_code)]
+    pub fn read_set(&mut self) -> HashSet<AccessPath> {
+        let mut return_set = HashSet::new();
+        std::mem::swap(&mut self.read_set, &mut return_set);
+        return_set
+    }
 }
 
 fn execute<'alloc, 'txn, P>(
     mut verified_txn: VerifiedTransaction<'alloc, 'txn, P>,
-) -> TransactionOutput
+) -> (TransactionOutput, HashSet<AccessPath>)
 where
     'alloc: 'txn,
     P: ModuleCache<'alloc>,
@@ -91,7 +102,10 @@ where
                             "[VM] VM internal error while checking for duplicate module {:?}: {:?}",
                             module_id, err
                         );
-                        return ExecutedTransaction::discard_error_output(&err);
+                        return (
+                            ExecutedTransaction::discard_error_output(&err),
+                            HashSet::new(),
+                        );
                     }
                 }
 
@@ -111,16 +125,22 @@ where
                 }
                 Err(err) => {
                     error!("[VM] VM error running script: {:?}", err);
-                    ExecutedTransaction::discard_error_output(&err)
+                    (
+                        ExecutedTransaction::discard_error_output(&err),
+                        HashSet::new(),
+                    )
                 }
             }
         }
         // WriteSet transaction. Just proceed and use the writeset as output.
-        TransactionPayload::WriteSet(write_set) => TransactionOutput::new(
-            write_set,
-            vec![],
-            0,
-            VMStatus::Execution(ExecutionStatus::Executed).into(),
+        TransactionPayload::WriteSet(write_set) => (
+            TransactionOutput::new(
+                write_set,
+                vec![],
+                0,
+                VMStatus::Execution(ExecutionStatus::Executed).into(),
+            ),
+            HashSet::new(),
         ),
     }
 }

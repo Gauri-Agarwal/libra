@@ -18,6 +18,9 @@ fn gen_address(index: u8) -> AccountAddress {
 
 struct MockStateView;
 
+unsafe impl Send for MockStateView {}
+unsafe impl Sync for MockStateView {}
+
 impl StateView for MockStateView {
     fn get(&self, _access_path: &AccessPath) -> Result<Option<Vec<u8>>> {
         Ok(None)

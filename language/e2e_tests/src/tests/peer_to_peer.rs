@@ -440,14 +440,14 @@ fn cycle_peer_to_peer_multi_block() {
     let mut executor = FakeExecutor::from_genesis_file();
 
     // create and publish accounts with 1_000_000 coins
-    let account_size = 100usize;
+    let account_size = 1_000usize;
     let initial_balance = 1_000_000u64;
     let initial_seq_num = 10u64;
     let accounts = executor.create_accounts(account_size, initial_balance, initial_seq_num);
 
     // set up the transactions
     let transfer_amount = 1_000;
-    let block_count = 5u64;
+    let block_count = 1u64;
     let cycle = account_size / (block_count as usize);
     let mut range_left = 0usize;
     let mut execution_time = 0u128;
@@ -466,7 +466,9 @@ fn cycle_peer_to_peer_multi_block() {
         // execute transaction
         let now = Instant::now();
         let output = executor.execute_block(txns);
-        execution_time += now.elapsed().as_nanos();
+        let exec = now.elapsed().as_millis();
+        println!("EXECUTION TIME: {}", exec);
+        execution_time += exec;
         for txn_output in &output {
             assert_eq!(
                 txn_output.status(),
@@ -477,8 +479,8 @@ fn cycle_peer_to_peer_multi_block() {
         check_and_apply_transfer_output(&mut executor, &txns_info, &output);
         range_left = (range_left + cycle) % account_size;
     }
-    println!("EXECUTION TIME: {}", execution_time);
-    print_accounts(&executor, &accounts);
+    println!("TOTAL EXECUTION TIME: {}", execution_time);
+    //print_accounts(&executor, &accounts);
 }
 
 #[test]

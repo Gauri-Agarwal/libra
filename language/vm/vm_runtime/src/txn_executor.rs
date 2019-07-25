@@ -14,7 +14,9 @@ use crate::{
     },
 };
 use bytecode_verifier::{VerifiedModule, VerifiedScript};
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashSet};
+use move_ir_natives::dispatch::{dispatch_native_call, NativeReturnType};
+
 use types::{
     access_path::AccessPath,
     account_address::AccountAddress,
@@ -166,6 +168,7 @@ where
         beginning_offset: CodeOffset,
     ) -> VMResult<CodeOffset> {
         let mut pc = beginning_offset;
+
         for instruction in &code[beginning_offset as usize..] {
             // FIXME: Once we add in memory ops, we will need to pass in the current memory size to
             // this function.
@@ -492,7 +495,9 @@ where
                             global_ref.size()
                         ));
                         self.execution_stack.push(Local::GlobalRef(global_ref));
+                        self.data_view.read_set.insert(ap);
                     } else {
+                        self.data_view.read_set.insert(ap);
                         return Err(VMInvariantViolation::LinkerError);
                     }
                 }
@@ -512,7 +517,9 @@ where
                             mem_size
                         ));
                         self.execution_stack.push(Local::bool(exists));
+                        self.data_view.read_set.insert(ap);
                     } else {
+                        self.data_view.read_set.insert(ap);
                         return Err(VMInvariantViolation::LinkerError);
                     }
                 }
@@ -685,10 +692,13 @@ where
     /// sender. 2. The transaction encounters `VMInvariantError`, which indicates some
     /// properties should have been guaranteed failed. Such transaction should be discarded for
     /// sanity but this implies a bug in the VM that we should take care of.
-    pub(crate) fn failed_transaction_cleanup(&mut self, result: VMResult<()>) -> TransactionOutput {
+    pub(crate) fn failed_transaction_cleanup(
+        &mut self,
+        result: VMResult<()>,
+    ) -> (TransactionOutput, HashSet<AccessPath>) {
         // Discard all the local writes, restart execution from a clean state.
         self.clear();
-        match self.run_epilogue() {
+        let output = match self.run_epilogue() {
             Ok(Ok(_)) => match self.make_write_set(vec![], result) {
                 Ok(trans_out) => trans_out,
                 Err(err) => error_output(&err),
@@ -697,7 +707,9 @@ where
             // the prologue
             Ok(Err(err)) => error_output(&err),
             Err(err) => error_output(&err),
-        }
+        };
+        let read_set = std::mem::replace(&mut self.data_view.read_set, HashSet::new());
+        (output, read_set)
     }
 
     /// Clear all the writes local to this transaction.
@@ -706,23 +718,26 @@ where
         self.event_data.clear();
     }
 
-    /// Generate the TransactionOutput for a successful transaction
+    /// Generate the TransactionOutput and read_set for a successful transaction
     pub(crate) fn transaction_cleanup(
         &mut self,
         to_be_published_modules: Vec<(ModuleId, Vec<u8>)>,
-    ) -> TransactionOutput {
+    ) -> (TransactionOutput, HashSet<AccessPath>) {
         // First run the epilogue
         match self.run_epilogue() {
             // If epilogue runs successfully, try to emit the writeset.
             Ok(Ok(_)) => match self.make_write_set(to_be_published_modules, Ok(Ok(()))) {
                 // This step could fail if the program has dangling global reference
-                Ok(trans_out) => trans_out,
+                Ok(trans_out) => {
+                    let read_set = std::mem::replace(&mut self.data_view.read_set, HashSet::new());
+                    (trans_out, read_set)
+                }
                 // In case of failure, run the cleanup code.
                 Err(err) => self.failed_transaction_cleanup(Ok(Err(err))),
             },
             // If the sender depleted its balance and can't pay for the gas, run the cleanup code.
             Ok(Err(err)) => self.failed_transaction_cleanup(Ok(Err(err))),
-            Err(err) => error_output(&err),
+            Err(err) => (error_output(&err), HashSet::new()),
         }
     }
 

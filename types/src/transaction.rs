@@ -281,6 +281,11 @@ impl SignatureCheckedTransaction {
     pub fn into_raw_transaction(self) -> RawTransaction {
         self.0.into_raw_transaction()
     }
+
+    /// Returns the sender of the raw_txn
+    pub fn sender(&self) -> AccountAddress {
+        self.0.sender()
+    }
 }
 
 impl Deref for SignatureCheckedTransaction {

@@ -22,6 +22,11 @@ use types::{
 };
 use vm_cache_map::Arena;
 
+pub enum Execute {
+    #[allow(dead_code)]
+    Parallel,
+    Sequential,
+}
 /// An instantiation of the MoveVM.
 /// `code_cache` is the top level module cache that holds loaded published modules.
 /// `script_cache` is the cache that stores all the scripts that have previously been invoked.
@@ -118,6 +123,7 @@ impl<'alloc> VMRuntime<'alloc> {
             &self.script_cache,
             data_view,
             &self.publishing_option,
+            Execute::Parallel,
         )
     }
 }

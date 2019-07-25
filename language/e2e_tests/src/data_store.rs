@@ -103,6 +103,10 @@ impl FakeDataStore {
     }
 }
 
+
+unsafe impl Send for FakeDataStore {}
+unsafe impl Sync for FakeDataStore {}
+
 // This is used by the `execute_block` API.
 // TODO: only the "sync" get is implemented
 impl StateView for FakeDataStore {

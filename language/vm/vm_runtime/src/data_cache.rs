@@ -4,7 +4,10 @@
 
 use logger::prelude::*;
 use state_view::StateView;
-use std::{collections::btree_map::BTreeMap, mem::replace};
+use std::{
+    collections::{btree_map::BTreeMap, HashSet},
+    mem::replace,
+};
 use types::{
     access_path::AccessPath,
     language_storage::ModuleId,
@@ -88,6 +91,7 @@ pub struct TransactionDataCache<'txn> {
     // case moving forward, so we need to review this.
     // Also need to relate this to a ResourceKey.
     data_map: BTreeMap<AccessPath, GlobalRef>,
+    pub read_set: HashSet<AccessPath>,
     data_cache: &'txn dyn RemoteCache,
 }
 
@@ -96,6 +100,7 @@ impl<'txn> TransactionDataCache<'txn> {
         TransactionDataCache {
             data_cache,
             data_map: BTreeMap::new(),
+            read_set: HashSet::new(),
         }
     }
 
@@ -280,6 +285,7 @@ impl<'txn> TransactionDataCache<'txn> {
 
     /// Flush out the cache and restart from a clean state
     pub fn clear(&mut self) {
-        self.data_map.clear()
+        self.data_map.clear();
+        self.read_set.clear();
     }
 }

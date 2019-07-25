@@ -112,6 +112,9 @@ impl<'a>
     }
 }
 
+unsafe impl<'a> Send for VerifiedStateView<'a> {}
+unsafe impl<'a> Sync for VerifiedStateView<'a> {}
+
 impl<'a> StateView for VerifiedStateView<'a> {
     fn get(&self, access_path: &AccessPath) -> Result<Option<Vec<u8>>> {
         let address = access_path.address;

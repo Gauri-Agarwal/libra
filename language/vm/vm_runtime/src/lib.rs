@@ -110,6 +110,7 @@ mod counters;
 mod frame;
 mod gas_meter;
 mod move_vm;
+mod parallel_execution;
 mod process_txn;
 mod runtime;
 

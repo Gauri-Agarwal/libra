@@ -277,6 +277,9 @@ pub fn default_config() -> VMConfig {
 
 struct FakeStateView;
 
+unsafe impl Send for FakeStateView {}
+unsafe impl Sync for FakeStateView {}
+
 impl StateView for FakeStateView {
     fn get(&self, _access_path: &AccessPath) -> Result<Option<Vec<u8>>> {
         Ok(None)
